@@ -1,0 +1,53 @@
+#! /bin/bash
+
+ARCH=`uname -m`
+
+if [[ $EUID -ne 0 ]]; then
+   echo -e "ERROR: You need to be root";
+   exit 1
+fi
+
+select_face(){
+  user=$1
+  n=1
+  face_dir='/usr/share/sddm/faces/*.icon';
+  for fullfile in ${face_dir[@]} ; do
+     filename=$(basename -- "$fullfile")
+     extension="${filename##*.}"
+     filename="${filename%.*}"
+     filename="${filename%.*}"
+     array_face[n]=${filename##*/}
+     echo $n ${array_face[$n]}
+     let n+=1
+  done
+  OK=0;
+  while [ "$OK" = 0 ] ; do
+      STR_READ=`echo "Specify a face for $user:"`
+      read -p "${STR_READ}" face_select
+      if [ -z "${array_face[face_select]}" ]; then
+          echo "Incorrect value"
+      else
+         OK=1
+         continue
+     fi
+   done
+}
+
+home_dir='/home/*';
+for d in ${home_dir[@]} ; do
+   if [ -d $d ]; then
+      home=`cut -d: -f6 /etc/passwd | grep $d`
+      if [ -n "$home" ]; then
+         setfacl -m u:sddm:x "$home"
+         if [ -f "$home/.face.icon" -o  -L "$home/.face.icon" ]; then
+            setfacl -m u:sddm:r "$home/.face.icon"
+         else
+            select_face $home
+            face=${array_face[face_select]}
+            echo $face
+            ln -s "/usr/share/sddm/faces/$face.icon" "$home/.face.icon"
+            setfacl -m u:sddm:r "$home/.face.icon"
+         fi
+      fi
+   fi
+done
